@@ -1,0 +1,52 @@
+<!DOCTYPE html>
+<html lang="id" data-theme="dark">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Custom YouTube Player</title>
+  <link rel="stylesheet" href="style.css" />
+</head>
+<body>
+  <div class="app">
+    <aside class="sidebar">
+      <div class="sidebar-header">
+        <h2>Playlist</h2>
+        <button id="themeToggle" title="Ganti tema">🌙</button>
+      </div>
+      <ul id="playlist"></ul>
+
+      <h2>Favorit</h2>
+      <ul id="favorites"></ul>
+    </aside>
+
+    <main class="main">
+      <header class="header">
+        <input type="text" id="searchInput" placeholder="Cari video..." />
+        <button id="searchBtn">Cari</button>
+      </header>
+
+      <div class="player-container">
+        <div id="player"></div>
+
+        <div class="custom-controls">
+          <button id="playPauseBtn">▶</button>
+          <input type="range" id="progress" value="0" min="0" max="100" />
+          <span id="timeDisplay">0:00 / 0:00</span>
+          <button id="favBtn">♡</button>
+          <button id="addPlaylistBtn">+ Playlist</button>
+        </div>
+
+        <div class="now-playing">
+          <h3 id="videoTitle">Pilih video untuk diputar</h3>
+          <p id="videoChannel"></p>
+        </div>
+      </div>
+
+      <div class="results" id="results"></div>
+    </main>
+  </div>
+
+  <script src="https://www.youtube.com/iframe_api"></script>
+  <script src="app.js"></script>
+</body>
+</html>
