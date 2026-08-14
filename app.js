@@ -6,6 +6,7 @@ let playlist = [];
 let favorites = [];
 let currentPlaylistIndex = -1;
 let searchResults = [];
+let videoStore = {}; // id -> video object
 
 function getUserId() {
   let id = localStorage.getItem("userId");
@@ -19,7 +20,6 @@ const userId = getUserId();
 
 // ===== Theme =====
 document.getElementById("themeToggle").addEventListener("click", () => {
-  // for now just toggle icon, full light theme can be added later
   const icon = document.querySelector("#themeToggle i");
   icon.classList.toggle("fa-moon");
   icon.classList.toggle("fa-sun");
@@ -45,18 +45,19 @@ function onYouTubeIframeAPIReady() {
         setInterval(updateProgress, 400);
         loadPlaylist();
         loadFavorites();
-        // load initial content
-        searchVideos("trending music 2024", true);
+        searchVideos("trending music", true);
       },
       onStateChange: (e) => {
         if (e.data === YT.PlayerState.PLAYING) {
           isPlaying = true;
-          document.querySelector("#playPauseBtn i").className = "fa-solid fa-pause";
+          const icon = document.querySelector("#playPauseBtn i");
+          if (icon) icon.className = "fa-solid fa-pause";
         } else if (e.data === YT.PlayerState.ENDED) {
           playNext();
         } else {
           isPlaying = false;
-          document.querySelector("#playPauseBtn i").className = "fa-solid fa-play";
+          const icon = document.querySelector("#playPauseBtn i");
+          if (icon) icon.className = "fa-solid fa-play";
         }
       },
     },
@@ -109,6 +110,7 @@ async function searchVideos(query, isInitial = false) {
   document.getElementById("sectionTitle").textContent = isInitial ? "Videos to try" : `Results for "${query}"`;
 
   resultsEl.innerHTML = `<p class="empty-msg">Loading...</p>`;
+  featuredEl.innerHTML = "";
 
   try {
     const res = await fetch(`/api/search?q=${encodeURIComponent(query)}&maxResults=16`);
@@ -116,45 +118,54 @@ async function searchVideos(query, isInitial = false) {
 
     if (!data.items || data.items.length === 0) {
       resultsEl.innerHTML = `<p class="empty-msg">No videos found.</p>`;
-      featuredEl.innerHTML = "";
       return;
     }
 
-    searchResults = data.items.map((item) => ({
-      id: item.id.videoId,
-      title: item.snippet.title,
-      channel: item.snippet.channelTitle,
-      thumbnail: item.snippet.thumbnails.high?.url || item.snippet.thumbnails.medium?.url,
-      channelId: item.snippet.channelId,
-    }));
+    searchResults = data.items.map((item) => {
+      const video = {
+        id: item.id.videoId,
+        title: item.snippet.title,
+        channel: item.snippet.channelTitle,
+        thumbnail: item.snippet.thumbnails.high?.url || item.snippet.thumbnails.medium?.url || "",
+      };
+      videoStore[video.id] = video;
+      return video;
+    });
 
-    // Featured (2 pertama)
-    featuredEl.innerHTML = searchResults.slice(0, 2).map((v) => `
-      <div class="featured-card" onclick='playVideo(${JSON.stringify(v).replace(/'/g, "&#39;")})'>
+    // Featured (2 first)
+    featuredEl.innerHTML = "";
+    searchResults.slice(0, 2).forEach((v) => {
+      const card = document.createElement("div");
+      card.className = "featured-card";
+      card.dataset.id = v.id;
+      card.innerHTML = `
         <img src="${v.thumbnail}" alt="" />
         <div class="overlay">
           <div class="tags"><span class="tag">VIDEO</span></div>
           <h4>${escapeHtml(v.title)}</h4>
-          <div class="channel">
-            <span>${escapeHtml(v.channel)}</span>
-          </div>
+          <div class="channel"><span>${escapeHtml(v.channel)}</span></div>
         </div>
-      </div>
-    `).join("");
+      `;
+      card.addEventListener("click", () => playVideoById(v.id));
+      featuredEl.appendChild(card);
+    });
 
     // Grid
-    resultsEl.innerHTML = searchResults.slice(2).map((v) => `
-      <div class="video-card" onclick='playVideo(${JSON.stringify(v).replace(/'/g, "&#39;")})'>
+    resultsEl.innerHTML = "";
+    searchResults.slice(2).forEach((v) => {
+      const card = document.createElement("div");
+      card.className = "video-card";
+      card.dataset.id = v.id;
+      card.innerHTML = `
         <div class="thumb-wrap">
           <img src="${v.thumbnail}" alt="" loading="lazy" />
         </div>
         <h4>${escapeHtml(v.title)}</h4>
-        <div class="meta">
-          <span>${escapeHtml(v.channel)}</span>
-        </div>
-      </div>
-    `).join("");
-
+        <div class="meta"><span>${escapeHtml(v.channel)}</span></div>
+      `;
+      card.addEventListener("click", () => playVideoById(v.id));
+      resultsEl.appendChild(card);
+    });
   } catch (err) {
     console.error(err);
     resultsEl.innerHTML = `<p class="empty-msg">Failed to load videos. Check API key.</p>`;
@@ -162,13 +173,33 @@ async function searchVideos(query, isInitial = false) {
 }
 
 // ===== Play =====
-function playVideo(video) {
-  if (!player || !video) return;
-  currentVideo = video;
-  player.loadVideoById(video.id);
+function playVideoById(id) {
+  const video = videoStore[id] || playlist.find((v) => v.id === id) || favorites.find((v) => v.id === id);
+  if (video) playVideo(video);
+}
 
-  document.getElementById("videoTitle").textContent = video.title;
-  document.getElementById("videoChannel").textContent = video.channel;
+function playVideo(video) {
+  if (!player) {
+    console.error("Player not ready");
+    return;
+  }
+  if (!video || !video.id) {
+    console.error("Invalid video", video);
+    return;
+  }
+
+  currentVideo = video;
+  videoStore[video.id] = video;
+
+  try {
+    player.loadVideoById(video.id);
+  } catch (e) {
+    console.error("loadVideoById error:", e);
+    return;
+  }
+
+  document.getElementById("videoTitle").textContent = video.title || "";
+  document.getElementById("videoChannel").textContent = video.channel || "";
 
   // Switch view
   document.getElementById("browseView").classList.add("hidden");
@@ -182,14 +213,20 @@ function playVideo(video) {
 document.getElementById("backBtn").addEventListener("click", () => {
   document.getElementById("playerView").classList.add("hidden");
   document.getElementById("browseView").classList.remove("hidden");
-  if (player && isPlaying) player.pauseVideo();
+  if (player && isPlaying) {
+    try { player.pauseVideo(); } catch (e) {}
+  }
 });
 
 // ===== Controls =====
 document.getElementById("playPauseBtn").addEventListener("click", () => {
   if (!player) return;
-  if (isPlaying) player.pauseVideo();
-  else player.playVideo();
+  try {
+    if (isPlaying) player.pauseVideo();
+    else player.playVideo();
+  } catch (e) {
+    console.error(e);
+  }
 });
 
 document.getElementById("progress").addEventListener("input", (e) => {
@@ -203,7 +240,8 @@ document.getElementById("volume").addEventListener("input", (e) => {
   const vol = Number(e.target.value);
   player.setVolume(vol);
   isMuted = vol === 0;
-  document.querySelector("#muteBtn i").className = isMuted ? "fa-solid fa-volume-xmark" : "fa-solid fa-volume-high";
+  const icon = document.querySelector("#muteBtn i");
+  if (icon) icon.className = isMuted ? "fa-solid fa-volume-xmark" : "fa-solid fa-volume-high";
 });
 
 document.getElementById("muteBtn").addEventListener("click", () => {
@@ -229,16 +267,17 @@ function playPrev() {
 }
 
 function playNext() {
-  if (playlist.length === 0) {
-    // fallback ke search results
-    if (searchResults.length === 0) return;
-    const idx = searchResults.findIndex((v) => v.id === currentVideo?.id);
-    const next = searchResults[(idx + 1) % searchResults.length];
-    playVideo(next);
+  if (playlist.length > 0) {
+    currentPlaylistIndex = currentPlaylistIndex >= playlist.length - 1 || currentPlaylistIndex === -1
+      ? 0
+      : currentPlaylistIndex + 1;
+    playVideo(playlist[currentPlaylistIndex]);
     return;
   }
-  currentPlaylistIndex = currentPlaylistIndex >= playlist.length - 1 || currentPlaylistIndex === -1 ? 0 : currentPlaylistIndex + 1;
-  playVideo(playlist[currentPlaylistIndex]);
+  if (searchResults.length === 0) return;
+  const idx = searchResults.findIndex((v) => v.id === currentVideo?.id);
+  const next = searchResults[(idx + 1) % searchResults.length];
+  if (next) playVideo(next);
 }
 
 // ===== Favorites =====
@@ -247,6 +286,7 @@ async function loadFavorites() {
     const res = await fetch(`/api/favorites?userId=${encodeURIComponent(userId)}`);
     const data = await res.json();
     favorites = Array.isArray(data) ? data : [];
+    favorites.forEach((v) => (videoStore[v.id] = v));
   } catch (e) {
     favorites = [];
   }
@@ -257,7 +297,10 @@ document.getElementById("favBtn").addEventListener("click", async () => {
   const isFav = favorites.some((v) => v.id === currentVideo.id);
   try {
     if (isFav) {
-      await fetch(`/api/favorites?userId=${encodeURIComponent(userId)}&videoId=${encodeURIComponent(currentVideo.id)}`, { method: "DELETE" });
+      await fetch(
+        `/api/favorites?userId=${encodeURIComponent(userId)}&videoId=${encodeURIComponent(currentVideo.id)}`,
+        { method: "DELETE" }
+      );
     } else {
       await fetch(`/api/favorites?userId=${encodeURIComponent(userId)}`, {
         method: "POST",
@@ -274,7 +317,7 @@ document.getElementById("favBtn").addEventListener("click", async () => {
 
 function updateFavButton() {
   const btn = document.getElementById("favBtn");
-  if (!currentVideo) return;
+  if (!currentVideo || !btn) return;
   const isFav = favorites.some((v) => v.id === currentVideo.id);
   btn.classList.toggle("active", isFav);
   btn.innerHTML = isFav
@@ -288,6 +331,7 @@ async function loadPlaylist() {
     const res = await fetch(`/api/playlist?userId=${encodeURIComponent(userId)}`);
     const data = await res.json();
     playlist = Array.isArray(data) ? data : [];
+    playlist.forEach((v) => (videoStore[v.id] = v));
     renderSidebarPlaylist();
   } catch (e) {
     playlist = [];
@@ -323,33 +367,45 @@ document.getElementById("openPlaylistBtn").addEventListener("click", () => {
 
 function renderSidebarPlaylist() {
   const el = document.getElementById("sidebarPlaylist");
+  if (!el) return;
   if (playlist.length === 0) {
     el.innerHTML = `<div style="padding:8px 12px;font-size:12px;color:var(--text-muted)">Belum ada video</div>`;
     return;
   }
-  el.innerHTML = playlist.slice(0, 8).map((v) => `
-    <div class="subs-item" onclick='playVideo(${JSON.stringify(v).replace(/'/g, "&#39;")})'>
-      <img class="thumb" src="${v.thumbnail || ''}" alt="" />
+  el.innerHTML = "";
+  playlist.slice(0, 8).forEach((v) => {
+    const item = document.createElement("div");
+    item.className = "subs-item";
+    item.innerHTML = `
+      <img class="thumb" src="${v.thumbnail || ""}" alt="" />
       <span>${escapeHtml(v.title)}</span>
-    </div>
-  `).join("");
+    `;
+    item.addEventListener("click", () => playVideo(v));
+    el.appendChild(item);
+  });
 }
 
 function renderUpNext() {
   const el = document.getElementById("upNext");
+  if (!el) return;
   const list = playlist.length > 0 ? playlist : searchResults;
-  el.innerHTML = list.slice(0, 10).map((v) => `
-    <div class="up-next-item" onclick='playVideo(${JSON.stringify(v).replace(/'/g, "&#39;")})'>
-      <img src="${v.thumbnail || ''}" alt="" />
+  el.innerHTML = "";
+  list.slice(0, 10).forEach((v) => {
+    const item = document.createElement("div");
+    item.className = "up-next-item";
+    item.innerHTML = `
+      <img src="${v.thumbnail || ""}" alt="" />
       <div class="info">
         <h5>${escapeHtml(v.title)}</h5>
         <p>${escapeHtml(v.channel)}</p>
       </div>
-    </div>
-  `).join("");
+    `;
+    item.addEventListener("click", () => playVideo(v));
+    el.appendChild(item);
+  });
 }
 
-// Nav items
+// Nav
 document.querySelectorAll(".nav-item").forEach((item) => {
   item.addEventListener("click", (e) => {
     e.preventDefault();
@@ -357,21 +413,28 @@ document.querySelectorAll(".nav-item").forEach((item) => {
     item.classList.add("active");
 
     const view = item.dataset.view;
+
     if (view === "favorites") {
       if (favorites.length === 0) {
         alert("Belum ada favorit");
         return;
       }
-      // tampilkan favorites di grid
       document.getElementById("featured").innerHTML = "";
       document.getElementById("sectionTitle").textContent = "Your Favorites";
-      document.getElementById("results").innerHTML = favorites.map((v) => `
-        <div class="video-card" onclick='playVideo(${JSON.stringify(v).replace(/'/g, "&#39;")})'>
-          <div class="thumb-wrap"><img src="${v.thumbnail || ''}" alt="" /></div>
+      const resultsEl = document.getElementById("results");
+      resultsEl.innerHTML = "";
+      favorites.forEach((v) => {
+        videoStore[v.id] = v;
+        const card = document.createElement("div");
+        card.className = "video-card";
+        card.innerHTML = `
+          <div class="thumb-wrap"><img src="${v.thumbnail || ""}" alt="" /></div>
           <h4>${escapeHtml(v.title)}</h4>
           <div class="meta"><span>${escapeHtml(v.channel)}</span></div>
-        </div>
-      `).join("");
+        `;
+        card.addEventListener("click", () => playVideo(v));
+        resultsEl.appendChild(card);
+      });
       document.getElementById("playerView").classList.add("hidden");
       document.getElementById("browseView").classList.remove("hidden");
     } else if (view === "playlist") {
@@ -381,17 +444,24 @@ document.querySelectorAll(".nav-item").forEach((item) => {
       }
       document.getElementById("featured").innerHTML = "";
       document.getElementById("sectionTitle").textContent = "Your Playlist";
-      document.getElementById("results").innerHTML = playlist.map((v) => `
-        <div class="video-card" onclick='playVideo(${JSON.stringify(v).replace(/'/g, "&#39;")})'>
-          <div class="thumb-wrap"><img src="${v.thumbnail || ''}" alt="" /></div>
+      const resultsEl = document.getElementById("results");
+      resultsEl.innerHTML = "";
+      playlist.forEach((v) => {
+        videoStore[v.id] = v;
+        const card = document.createElement("div");
+        card.className = "video-card";
+        card.innerHTML = `
+          <div class="thumb-wrap"><img src="${v.thumbnail || ""}" alt="" /></div>
           <h4>${escapeHtml(v.title)}</h4>
           <div class="meta"><span>${escapeHtml(v.channel)}</span></div>
-        </div>
-      `).join("");
+        `;
+        card.addEventListener("click", () => playVideo(v));
+        resultsEl.appendChild(card);
+      });
       document.getElementById("playerView").classList.add("hidden");
       document.getElementById("browseView").classList.remove("hidden");
-    } else if (view === "home") {
-      searchVideos("trending", true);
+    } else if (view === "home" || view === "popular") {
+      searchVideos(view === "popular" ? "popular music" : "trending", true);
       document.getElementById("playerView").classList.add("hidden");
       document.getElementById("browseView").classList.remove("hidden");
     }
