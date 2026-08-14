@@ -52,6 +52,10 @@ function onYouTubeIframeAPIReady() {
           isPlaying = true;
           const icon = document.querySelector("#playPauseBtn i");
           if (icon) icon.className = "fa-solid fa-pause";
+          // Coba naikkan kualitas saat mulai play
+          if (currentQuality === "auto") {
+            setTimeout(tryHighQuality, 800);
+          }
         } else if (e.data === YT.PlayerState.ENDED) {
           playNext();
         } else {
@@ -256,6 +260,83 @@ document.getElementById("muteBtn").addEventListener("click", () => {
     isMuted = true;
   }
 });
+
+// ===== Quality Selector =====
+const qualityLabels = {
+  highres: "1080p+",
+  hd1080: "1080p",
+  hd720: "720p",
+  large: "480p",
+  medium: "360p",
+  small: "240p",
+  tiny: "144p",
+  auto: "Auto",
+};
+
+let currentQuality = "auto";
+
+document.getElementById("qualityBtn").addEventListener("click", (e) => {
+  e.stopPropagation();
+  document.getElementById("qualityMenu").classList.toggle("hidden");
+});
+
+document.addEventListener("click", () => {
+  document.getElementById("qualityMenu").classList.add("hidden");
+});
+
+document.querySelectorAll("#qualityMenu button").forEach((btn) => {
+  btn.addEventListener("click", (e) => {
+    e.stopPropagation();
+    const q = btn.dataset.quality;
+    setQuality(q);
+    document.getElementById("qualityMenu").classList.add("hidden");
+  });
+});
+
+function setQuality(quality) {
+  if (!player) return;
+  currentQuality = quality;
+  document.getElementById("qualityLabel").textContent = qualityLabels[quality] || quality;
+
+  document.querySelectorAll("#qualityMenu button").forEach((b) => {
+    b.classList.toggle("active", b.dataset.quality === quality);
+  });
+
+  try {
+    if (quality === "auto") {
+      // biarkan YouTube yang pilih
+      if (typeof player.setPlaybackQuality === "function") {
+        player.setPlaybackQuality("default");
+      }
+    } else {
+      player.setPlaybackQuality(quality);
+      // kadang perlu dipanggil lagi setelah sedikit delay
+      setTimeout(() => {
+        try { player.setPlaybackQuality(quality); } catch (e) {}
+      }, 500);
+    }
+  } catch (err) {
+    console.warn("setPlaybackQuality failed:", err);
+  }
+}
+
+// Coba paksa kualitas tinggi saat video mulai
+function tryHighQuality() {
+  if (!player) return;
+  try {
+    // Prefer 720p or higher when available
+    const levels = player.getAvailableQualityLevels?.() || [];
+    if (levels.includes("hd1080")) {
+      player.setPlaybackQuality("hd1080");
+      currentQuality = "hd1080";
+      document.getElementById("qualityLabel").textContent = "1080p";
+    } else if (levels.includes("hd720")) {
+      player.setPlaybackQuality("hd720");
+      currentQuality = "hd720";
+      document.getElementById("qualityLabel").textContent = "720p";
+    }
+  } catch (e) {}
+}
 
 document.getElementById("prevBtn").addEventListener("click", playPrev);
 document.getElementById("nextBtn").addEventListener("click", playNext);

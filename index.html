@@ -103,6 +103,22 @@
                   <button id="muteBtn"><i class="fa-solid fa-volume-high"></i></button>
                   <input type="range" id="volume" value="100" min="0" max="100" />
                 </div>
+
+                <div class="quality-wrap">
+                  <button id="qualityBtn" class="quality-btn" title="Quality">
+                    <i class="fa-solid fa-gear"></i> <span id="qualityLabel">Auto</span>
+                  </button>
+                  <div id="qualityMenu" class="quality-menu hidden">
+                    <button data-quality="highres">1080p+</button>
+                    <button data-quality="hd1080">1080p</button>
+                    <button data-quality="hd720">720p</button>
+                    <button data-quality="large">480p</button>
+                    <button data-quality="medium">360p</button>
+                    <button data-quality="small">240p</button>
+                    <button data-quality="tiny">144p</button>
+                    <button data-quality="auto">Auto</button>
+                  </div>
+                </div>
               </div>
             </div>
 

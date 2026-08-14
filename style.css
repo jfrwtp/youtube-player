@@ -732,3 +732,62 @@ body {
     padding: 12px 16px;
   }
 }
+
+/* Quality Selector */
+.quality-wrap {
+  position: relative;
+}
+
+.quality-btn {
+  background: var(--bg-hover) !important;
+  border: 1px solid var(--border) !important;
+  color: var(--text) !important;
+  padding: 6px 10px !important;
+  border-radius: 6px !important;
+  font-size: 12px !important;
+  display: flex !important;
+  align-items: center;
+  gap: 5px;
+  white-space: nowrap;
+}
+
+.quality-btn:hover {
+  border-color: var(--accent) !important;
+  color: var(--accent) !important;
+}
+
+.quality-menu {
+  position: absolute;
+  bottom: 110%;
+  right: 0;
+  background: var(--bg-card);
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  padding: 6px;
+  min-width: 110px;
+  z-index: 50;
+  box-shadow: 0 8px 24px rgba(0,0,0,0.4);
+}
+
+.quality-menu button {
+  display: block;
+  width: 100%;
+  text-align: left;
+  background: none;
+  border: none;
+  color: var(--text);
+  padding: 8px 12px;
+  border-radius: 6px;
+  font-size: 13px;
+  cursor: pointer;
+}
+
+.quality-menu button:hover {
+  background: var(--bg-hover);
+  color: var(--accent);
+}
+
+.quality-menu button.active {
+  color: var(--accent);
+  font-weight: 600;
+}
