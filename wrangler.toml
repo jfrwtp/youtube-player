@@ -1,8 +1,6 @@
-name = "youtube-custom-player"
+name = "youtube-streaming-ui"
 compatibility_date = "2026-08-14"
 
-# Ganti database_id setelah menjalankan:
-# npx wrangler d1 create youtube-player-db
 [[d1_databases]]
 binding = "DB"
 database_name = "youtube-player-db"
