@@ -215,6 +215,13 @@ function playVideo(video) {
 }
 
 document.getElementById("backBtn").addEventListener("click", () => {
+  // Exit mini mode if active
+  if (isMini) {
+    isMini = false;
+    document.body.classList.remove("mini-mode");
+    const icon = document.querySelector("#miniBtn i");
+    if (icon) icon.className = "fa-solid fa-compress";
+  }
   document.getElementById("playerView").classList.add("hidden");
   document.getElementById("browseView").classList.remove("hidden");
   if (player && isPlaying) {
@@ -324,7 +331,6 @@ function setQuality(quality) {
 function tryHighQuality() {
   if (!player) return;
   try {
-    // Prefer 720p or higher when available
     const levels = player.getAvailableQualityLevels?.() || [];
     if (levels.includes("hd1080")) {
       player.setPlaybackQuality("hd1080");
@@ -337,6 +343,47 @@ function tryHighQuality() {
     }
   } catch (e) {}
 }
+
+// ===== Fullscreen =====
+document.getElementById("fsBtn").addEventListener("click", () => {
+  const wrapper = document.querySelector(".player-wrapper");
+  if (!wrapper) return;
+
+  if (!document.fullscreenElement) {
+    if (wrapper.requestFullscreen) wrapper.requestFullscreen();
+    else if (wrapper.webkitRequestFullscreen) wrapper.webkitRequestFullscreen();
+    document.querySelector("#fsBtn i").className = "fa-solid fa-compress";
+  } else {
+    if (document.exitFullscreen) document.exitFullscreen();
+    else if (document.webkitExitFullscreen) document.webkitExitFullscreen();
+    document.querySelector("#fsBtn i").className = "fa-solid fa-expand";
+  }
+});
+
+document.addEventListener("fullscreenchange", () => {
+  const icon = document.querySelector("#fsBtn i");
+  if (!icon) return;
+  icon.className = document.fullscreenElement ? "fa-solid fa-compress" : "fa-solid fa-expand";
+});
+
+// ===== Mini Player =====
+let isMini = false;
+
+document.getElementById("miniBtn").addEventListener("click", () => {
+  isMini = !isMini;
+  document.body.classList.toggle("mini-mode", isMini);
+
+  const icon = document.querySelector("#miniBtn i");
+  if (icon) {
+    icon.className = isMini ? "fa-solid fa-expand" : "fa-solid fa-compress";
+  }
+
+  // Pastikan player view terlihat saat mini
+  if (isMini) {
+    document.getElementById("playerView").classList.remove("hidden");
+    document.getElementById("browseView").classList.add("hidden");
+  }
+});
 
 document.getElementById("prevBtn").addEventListener("click", playPrev);
 document.getElementById("nextBtn").addEventListener("click", playNext);
